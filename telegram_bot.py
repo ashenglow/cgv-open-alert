@@ -20,6 +20,7 @@ config 의 chat_id 와 같은 대화에서 온 명령만 처리한다.
 from __future__ import annotations
 
 import difflib
+import hashlib
 
 import cgv_api
 import chains
@@ -77,6 +78,13 @@ def _rows(buttons, per_row):
     return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
 
 
+def _target_token(target):
+    import watcher
+
+    raw = watcher.target_id(target)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
 # ---------------------------------------------------------------- 화면
 
 def help_text():
@@ -106,7 +114,7 @@ def list_view(cfg, describe):
                 chains.label(target["site_no"]),
                 target.get("site_nm", ""),
             ),
-            "callback_data": "del|{}".format(i),
+            "callback_data": "del|" + _target_token(target),
         }])
     return "\n".join(lines), keyboard
 
@@ -403,15 +411,78 @@ def _one(upd, cfg, state, draft, describe, check_fn, my_chat):
             return False, {}, True
 
         elif data.startswith("del|"):
-            idx = int(data[4:])
+            token = data[4:]
             targets = cfg.get("targets", [])
-            if 0 <= idx < len(targets):
-                removed = targets.pop(idx)
-                text, kb = list_view(cfg, describe)
-                edit(chat_id, msg_id,
-                     "삭제했습니다: {}\n\n{}".format(describe(removed), text), kb)
-                return True, draft, True
-            edit(chat_id, msg_id, "이미 삭제된 항목입니다.")
+
+            target = next(
+                (t for t in targets if _target_token(t) == token),
+                None,
+            )
+
+            if target is None:
+                edit(chat_id, msg_id, "이미 삭제됐거나 찾을 수 없는 항목입니다.")
+                return False, draft, True
+
+            edit(
+                chat_id,
+                msg_id,
+                "⚠️ 정말 삭제할까요?\n\n<b>{}</b>".format(
+                    describe(target)
+                ),
+                [[
+                    {
+                        "text": "✅ 삭제",
+                        "callback_data": "delok|" + token,
+                    },
+                    {
+                        "text": "↩️ 취소",
+                        "callback_data": "delcancel",
+                    },
+                ]],
+            )
+            return False, draft, True
+
+        elif data.startswith("delok|"):
+            token = data[6:]
+            targets = cfg.get("targets", [])
+
+            idx = next(
+                (
+                    i
+                    for i, t in enumerate(targets)
+                    if _target_token(t) == token
+                ),
+                None,
+            )
+
+            if idx is None:
+                edit(chat_id, msg_id, "이미 삭제됐거나 찾을 수 없는 항목입니다.")
+                return False, draft, True
+
+            removed = targets.pop(idx)
+            text, kb = list_view(cfg, describe)
+
+            edit(
+                chat_id,
+                msg_id,
+                "삭제했습니다: {}\n\n{}".format(
+                    describe(removed),
+                    text,
+                ),
+                kb,
+            )
+            return True, {}, True
+
+        elif data == "delcancel":
+            text, kb = list_view(cfg, describe)
+
+            edit(
+                chat_id,
+                msg_id,
+                "삭제를 취소했습니다.\n\n{}".format(text),
+                kb,
+            )
+            return False, draft, True
 
         return False, draft, True
 
