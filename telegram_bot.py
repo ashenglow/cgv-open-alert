@@ -435,6 +435,10 @@ def _one(upd, cfg, state, draft, describe, check_fn, my_chat):
         send("추가했습니다.\n\n<b>{}</b>\n\n{}".format(
             describe(target), _hit_note(hits)))
         return True, {}, True
+        
+    # /add 진행 중이 아닌 일반 대화는 무시
+    if not text.startswith("/"):
+        return False, draft, False    
 
     cmd = text.split()[0].lower().split("@")[0]
 
