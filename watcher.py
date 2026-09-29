@@ -443,6 +443,15 @@ def run_once(cfg, state, dry_run=False):
         keyword = target.get("movie_keyword", "")
         unit = granularity_of(target)
         label = describe(target)
+    
+        # 메가박스는 매 사이클 확인.
+        # CGV는 설정한 횟수마다 한 번만 확인.
+        if not chains.is_megabox(site_no):
+            cgv_every = max(1, int(cfg.get("cgv_every_runs", 3)))
+    
+            if state["run_no"] % cgv_every != 1:
+                log("  {}: CGV 감속 주기라 이번 사이클 건너뜀".format(label))
+                continue
 
         # 이번에 새로 등록된 대상인가. 시스템 전체의 첫 실행과는 별개다.
         # 이미 돌고 있는 상태에서 대상을 추가하면 그 대상에 대한 seen 이
