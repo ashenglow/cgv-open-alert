@@ -465,13 +465,25 @@ def run_once(cfg, state, dry_run=False):
         if site_no not in new_gates:
             try:
                 new_gates[site_no] = gate_snapshot(site_no)
+        
             except megabox_api.MegaboxError as exc:
                 log("  {}: 메가박스 조회 실패 → 이번 사이클만 건너뜀: {}".format(
                     label, exc
                 ))
                 continue
-
+        
+            except cgv_api.CloudflareBlocked as exc:
+                log("  {}: CGV 403 → 이번 사이클만 건너뜀: {}".format(
+                    label, exc
+                ))
+                continue
+        
         snap = new_gates[site_no]
+
+        # CGV 지점들을 연속으로 너무 빠르게 조회하지 않도록 간격 추가
+        if not chains.is_megabox(site_no):
+            time.sleep(random.uniform(1.0, 2.0))
+            
         changed = old_gates.get(site_no) != snap
 
         if not (changed or force_scan or first_run or new_target):
