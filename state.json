@@ -165,8 +165,8 @@
   },
   "initialized": true,
   "last_block_warn": 1788362723.0054746,
-  "last_run": "2026-09-29T23:35:02+09:00",
-  "run_no": 36553,
+  "last_run": "2026-09-29T23:39:48+09:00",
+  "run_no": 36557,
   "seen": [
     "MB0041|26048501|20260930|1100|03",
     "MB0041|26048501|20260930|1310|03",
@@ -262,14 +262,7 @@
     "M|MB7011|26056403"
   ],
   "tg_draft": {
-    "awaiting_movie": true,
-    "chain": "m",
-    "pending_movie": "치이카와",
-    "region": "서울",
-    "screen": "ALL",
-    "site_nm": "더부티크목동현대백화점",
-    "site_no": "MB0041",
-    "suggestions": []
+    "chain": "m"
   },
   "tg_offset": 880129029
 }
