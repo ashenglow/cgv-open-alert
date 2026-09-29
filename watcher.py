@@ -361,12 +361,34 @@ def gate_snapshot(site_no):
     return chains.gate(site_no)
 
 
-def scan_site(site_no, dates):
-    """지점의 모든 열린 날짜에서 전체 시간표를 모은다 (상영관 필터 없음)."""
+def scan_site(site_no, dates, cfg=None):
+    """지점의 모든 열린 날짜에서 전체 시간표를 모은다 (상영관 필터 없음).
+
+    날짜 하나를 조회할 때마다 텔레그램 명령도 확인해서
+    /add 버튼 반응이 오래 막히지 않게 한다.
+    """
     rows = []
+
     for ymd in dates:
         rows.extend(chains.schedules(site_no, ymd))
         chains.jitter(site_no)
+
+        if cfg is not None:
+            try:
+                state = load_state()
+                changed, _ = telegram_bot.handle(
+                    cfg,
+                    state,
+                    describe,
+                    check_summary,
+                    long_poll=0,
+                )
+                if changed:
+                    save_config(cfg)
+                save_state(state)
+            except Exception as exc:
+                log("스캔 중 봇 명령 처리 실패(무시): {}".format(exc))
+
     return rows
 
 
@@ -438,7 +460,7 @@ def run_once(cfg, state, dry_run=False):
                "첫 실행" if first_run else
                "게이트 변화" if changed else "정기 전체 스캔")
         if site_no not in scanned:
-            scanned[site_no] = scan_site(site_no, snap["dates"])
+            scanned[site_no] = scan_site(site_no, snap["dates"], cfg)
         all_rows = scanned[site_no]
         alive_movie_keys.update(movie_key(site_no, r) for r in all_rows)
 
