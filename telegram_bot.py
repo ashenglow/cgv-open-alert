@@ -574,16 +574,21 @@ def _status(cfg, state, describe):
     targets = cfg.get("targets", [])
     lines = ["<b>실행 상태</b>", ""]
 
-    if state.get("blocked"):
-        blocked_at = state.get("blocked_at")
-        try:
-            from datetime import datetime
-            when = datetime.fromisoformat(blocked_at).strftime("%H:%M")
-            lines.append("CGV          ⚠️ 403 차단 중 ({}~)".format(when))
-        except Exception:
-            lines.append("CGV          ⚠️ 403 차단 중")
+    fail_count = int(state.get("cgv_fail_count", 0) or 0)
+    last_attempt = state.get("cgv_last_attempt")
+    try:
+        from datetime import datetime
+        attempt_txt = datetime.fromisoformat(last_attempt).strftime("%H:%M:%S")
+    except Exception:
+        attempt_txt = "아직 없음"
+
+    if fail_count > 0:
+        lines.append("CGV          ⚠️ 최근 조회 실패 (403)")
+        lines.append("             마지막 시도 {} · 연속 {}회".format(
+            attempt_txt, fail_count))
     else:
-        lines.append("CGV          ✅ 감시 정상")
+        lines.append("CGV          ✅ 최근 조회 성공")
+        lines.append("             마지막 시도 {}".format(attempt_txt))
 
     lines.append("메가박스     ✅ 감시 대상 유지")
     lines.append("롯데시네마   ✅ 감시 대상 유지")
