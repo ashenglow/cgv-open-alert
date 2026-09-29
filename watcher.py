@@ -455,13 +455,15 @@ def run_once(cfg, state, dry_run=False):
     
         # 이번 사이클에서 CGV 403이 한 번이라도 났으면
         # 나머지 CGV는 더 두드리지 않고 메가박스만 계속 본다.
-        if cgv_blocked_this_cycle and not chains.is_megabox(site_no):
+        if (cgv_blocked_this_cycle
+                and not chains.is_megabox(site_no)
+                and not chains.is_lotte(site_no)):
             log("  {}: 이번 사이클 CGV 403 발생 → CGV 조회 생략".format(label))
             continue
 
         # 메가박스는 매 사이클 확인.
         # CGV는 설정한 횟수마다 한 번만 확인.
-        if not chains.is_megabox(site_no):
+        if not chains.is_megabox(site_no) and not chains.is_lotte(site_no):
             cgv_every = max(1, int(cfg.get("cgv_every_runs", 3)))
 
             if state["run_no"] % cgv_every != 1:
@@ -513,7 +515,7 @@ def run_once(cfg, state, dry_run=False):
         snap = new_gates[site_no]
 
         # CGV 지점들을 연속으로 너무 빠르게 조회하지 않도록 간격 추가
-        if not chains.is_megabox(site_no):
+        if not chains.is_megabox(site_no) and not chains.is_lotte(site_no):
             time.sleep(random.uniform(1.0, 2.0))
             
         changed = old_gates.get(site_no) != snap
