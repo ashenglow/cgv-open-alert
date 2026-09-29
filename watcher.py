@@ -446,6 +446,19 @@ def run_once(cfg, state, dry_run=False):
         return messages, state
 
     for target in cfg["targets"]:
+        # 게이트 조회가 느리거나 타임아웃이어도 Telegram 명령이 오래 굶지 않도록
+        # 지점 하나를 시작할 때마다 밀린 명령을 먼저 처리한다.
+        if not dry_run:
+            try:
+                changed, _ = telegram_bot.handle(
+                    cfg, state, describe, check_summary, long_poll=0
+                )
+                if changed:
+                    save_config(cfg)
+                save_state(state)
+            except Exception as exc:
+                log("지점 전환 중 봇 명령 처리 실패(무시): {}".format(exc))
+
         site_no = target["site_no"]
         site_nm = target.get("site_nm", site_no)
         screen = screen_of(target)
