@@ -30,6 +30,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install "curl_cffi>=0.7.0"    
           
       - name: 감시 실행 (60초 간격으로 4분간)
         env:
