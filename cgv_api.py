@@ -59,19 +59,20 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = "https://cgv.co.kr/api/v1"
-CO_CD = "A420"           # CGV 회사코드
-RTCTL_SCOP_CD = "01"     # 발매통제범위코드
-IMAX_GRADE = "아이맥스"    # searchMovScnInfo 의 tcscnsGradNm 값
+from playwright.sync_api import sync_playwright
 
-# Cloudflare 통과용. 위 주석 참고.
+
+BASE = "https://cgv.co.kr/api/v1"
+CO_CD = "A420"
+RTCTL_SCOP_CD = "01"
+IMAX_GRADE = "아이맥스"
+
 CHROME_VER = "140"
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/{}.0.0.0 Safari/537.36".format(CHROME_VER)
 )
 
-# 요즘 브라우저만 보내는 묶음. 둘 중 하나만 있어도 통과하지만 둘 다 보낸다.
 BROWSER_HINTS = {
     "sec-ch-ua": '"Chromium";v="{v}", "Not=A?Brand";v="24", '
                  '"Google Chrome";v="{v}"'.format(v=CHROME_VER),
@@ -91,68 +92,149 @@ class CgvError(RuntimeError):
 
 
 class CloudflareBlocked(CgvError):
-    """403. UA 규칙에 걸렸거나 Cloudflare 정책이 강화됐다."""
+    """403. CGV 접근이 차단된 경우."""
 
+
+# ------------------------------------------------------------
+# Chromium 재사용
+# ------------------------------------------------------------
+
+_PW = None
+_BROWSER = None
+_CONTEXT = None
+_PAGE = None
+
+
+def _browser_page():
+    global _PW, _BROWSER, _CONTEXT, _PAGE
+
+    if _PAGE is None:
+        _PW = sync_playwright().start()
+
+        _BROWSER = _PW.chromium.launch(
+            headless=True
+        )
+
+        _CONTEXT = _BROWSER.new_context(
+            locale="ko-KR",
+            timezone_id="Asia/Seoul",
+        )
+
+        _PAGE = _CONTEXT.new_page()
+
+        # 먼저 실제 CGV 페이지에 접속해서
+        # 같은 브라우저 컨텍스트 안에서 API를 호출한다.
+        _PAGE.goto(
+            "https://cgv.co.kr/cnm/movieBook",
+            wait_until="domcontentloaded",
+            timeout=30000,
+        )
+
+    return _PAGE
+
+
+# ------------------------------------------------------------
+# CGV API 요청
+# ------------------------------------------------------------
 
 def _get(path, **params):
     params.setdefault("coCd", CO_CD)
-    url = BASE + "/" + path + "?" + urllib.parse.urlencode(params)
-    headers = {
-        "User-Agent": UA,
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "ko-KR,ko;q=0.9",
-        "Referer": "https://cgv.co.kr/cnm/movieBook",
-        "Origin": "https://cgv.co.kr",
-    }
-    headers.update(BROWSER_HINTS)
-    req = urllib.request.Request(url, headers=headers)
+
+    url = (
+        BASE
+        + "/"
+        + path
+        + "?"
+        + urllib.parse.urlencode(params)
+    )
 
     last = None
+
     for attempt in range(RETRIES):
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-                raw = resp.read()
-                if resp.headers.get("Content-Encoding") == "gzip":
-                    raw = gzip.decompress(raw)
-                body = json.loads(raw.decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            if exc.code == 403:
+            page = _browser_page()
+
+            result = page.evaluate(
+                """
+                async (url) => {
+                    const response = await fetch(url, {
+                        method: "GET",
+                        credentials: "include",
+                        headers: {
+                            "Accept": "application/json, text/plain, */*"
+                        }
+                    });
+
+                    return {
+                        status: response.status,
+                        text: await response.text()
+                    };
+                }
+                """,
+                url,
+            )
+
+            status_code = result["status"]
+
+            if status_code == 403:
                 raise CloudflareBlocked(
-                    "403 Forbidden: " + url + "\n"
-                    "Cloudflare가 이 요청을 봇으로 판정했습니다. "
-                    "cgv_api 의 UA / Referer / BROWSER_HINTS 를 확인하세요. "
-                    "(CGV가 통과 조건을 또 올렸을 수 있습니다)"
-                ) from exc
-            if exc.code == 429:
-                # 속도 제한. 서버가 알려준 만큼 기다렸다가 다시 시도한다.
-                wait = exc.headers.get("Retry-After")
-                try:
-                    wait = int(wait)
-                except (TypeError, ValueError):
-                    wait = 30 * (attempt + 1)
-                time.sleep(min(wait, 120))
-            last = exc
-        except Exception as exc:  # 네트워크 오류 등
-            last = exc
-        else:
+                    "403 Forbidden: "
+                    + url
+                    + "\\nChromium에서도 CGV 요청이 차단되었습니다."
+                )
+
+            if status_code == 429:
+                last = RuntimeError(
+                    "CGV 429 Too Many Requests"
+                )
+                time.sleep(30 * (attempt + 1))
+                continue
+
+            if status_code < 200 or status_code >= 300:
+                raise CgvError(
+                    "{} HTTP {}".format(
+                        path,
+                        status_code,
+                    )
+                )
+
+            body = json.loads(result["text"])
+
             status = body.get("statusCode")
+
             if status not in (0, "0"):
                 raise CgvError(
-                    path + ": " + str(body.get("statusMessage"))
-                    + " / " + json.dumps(body.get("data"), ensure_ascii=False)
+                    path
+                    + ": "
+                    + str(body.get("statusMessage"))
+                    + " / "
+                    + json.dumps(
+                        body.get("data"),
+                        ensure_ascii=False,
+                    )
                 )
+
             return body.get("data")
+
+        except CloudflareBlocked:
+            raise
+
+        except Exception as exc:
+            last = exc
 
         if attempt < RETRIES - 1:
             time.sleep(1.5 ** attempt)
 
-    raise CgvError(path + " 요청 실패: " + repr(last))
+    raise CgvError(
+        path
+        + " 요청 실패: "
+        + repr(last)
+    )
 
 
 def _jitter():
     """CGV 서버를 배려한 요청 간 지연."""
     time.sleep(random.uniform(0.3, 0.8))
-
 
 # ---------------------------------------------------------------- 조회 API
 
