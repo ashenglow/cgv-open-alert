@@ -13,6 +13,27 @@
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "schedule"
+    },
+    {
+      "site_no": "MB1431",
+      "site_nm": "군자",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "schedule"
+    },
+    {
+      "site_no": "MB1561",
+      "site_nm": "이수",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "schedule"
+    },
+    {
+      "site_no": "MB0041",
+      "site_nm": "더부티크목동현대백화점",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "schedule"
     }
   ],
   "full_scan_every_runs": 30,
