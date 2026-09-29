@@ -54,7 +54,7 @@ def label(site):
     return "CGV"
 
 
-def gate(site):
+def gate(site, target_date=None):
     """지점당 최소 요청으로 '변화 있었나'를 볼 값.
 
     값이 달라졌을 때만 상세 시간표를 조회한다. 극장사마다 모양이 다르지만
@@ -63,7 +63,7 @@ def gate(site):
     if is_megabox(site):
         return megabox_api.get_gate(code(site))
     if is_lotte(site):
-        return lotte_api.get_gate(code(site))
+        return lotte_api.get_gate(code(site), target_date=target_date)
     # 특별관 현황 요청 하나에 아이맥스·4DX·SCREENX 편수가 전부 담겨 온다.
     # 예전에는 아이맥스만 꺼내 쓰고 나머지를 버렸다. 그러면 이미 열린
     # 날짜에 4DX 로 새 영화가 끼어드는 것을 게이트가 못 잡아서, 정기 전체
