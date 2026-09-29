@@ -573,6 +573,21 @@ def _finish(draft, keyword):
 def _status(cfg, state, describe):
     targets = cfg.get("targets", [])
     lines = ["<b>실행 상태</b>", ""]
+
+    if state.get("blocked"):
+        blocked_at = state.get("blocked_at")
+        try:
+            from datetime import datetime
+            when = datetime.fromisoformat(blocked_at).strftime("%H:%M")
+            lines.append("CGV          ⚠️ 403 차단 중 ({}~)".format(when))
+        except Exception:
+            lines.append("CGV          ⚠️ 403 차단 중")
+    else:
+        lines.append("CGV          ✅ 감시 정상")
+
+    lines.append("메가박스     ✅ 감시 대상 유지")
+    lines.append("롯데시네마   ✅ 감시 대상 유지")
+    lines.append("")
     lines.append("마지막 점검  {}".format(state.get("last_run", "아직 없음")))
     lines.append("누적 점검     {}회".format(state.get("run_no", 0)))
     lines.append("기준선 회차   {}건".format(len(state.get("seen", []))))
