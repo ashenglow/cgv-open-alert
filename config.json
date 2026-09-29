@@ -41,6 +41,20 @@
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "schedule"
+    },
+    {
+      "site_no": "0013",
+      "site_nm": "용산아이파크몰",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "schedule"
+    },
+    {
+      "site_no": "0009",
+      "site_nm": "명동",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "schedule"
     }
   ],
   "full_scan_every_runs": 30,
