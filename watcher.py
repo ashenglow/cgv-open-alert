@@ -344,44 +344,45 @@ def build_movie_message(site_nm, mov_nm, rows, site_no=""):
     ])
 
 
-def build_cgv_status_message(blocked, blocked_at=None, detail=None):
-    """CGV 감시 상태를 한 개의 텔레그램 상태판으로 보여준다."""
-    now_txt = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+def build_cgv_status_message(state, failed, detail=None):
+    """CGV의 '최근 실제 조회 결과'를 한 개의 상태판으로 보여준다."""
+    attempt = state.get("cgv_last_attempt")
+    try:
+        attempt_txt = datetime.fromisoformat(attempt).strftime("%H:%M:%S")
+    except (TypeError, ValueError):
+        attempt_txt = "아직 없음"
 
-    if blocked:
-        lines = ["⚠️ <b>CGV 감시 일시 중단</b>", ""]
-        try:
-            when = datetime.fromisoformat(blocked_at).strftime("%H:%M")
-            lines.append("{}부터 CGV가 403으로 차단 중입니다.".format(when))
-        except (TypeError, ValueError):
-            lines.append("CGV가 403으로 차단 중입니다.")
-        lines += [
+    fail_count = int(state.get("cgv_fail_count", 0) or 0)
+
+    if failed:
+        lines = [
+            "⚠️ <b>CGV 최근 조회 실패 (403)</b>",
+            "",
+            "마지막 실제 시도  {}".format(attempt_txt),
+            "연속 실패        {}회".format(fail_count),
             "다음 CGV 점검 때 자동으로 다시 시도합니다.",
             "메가박스·롯데시네마 감시는 계속됩니다.",
         ]
+        if fail_count >= 3:
+            lines += ["", "⚠️ <b>여러 차례 연속 실패 중입니다.</b>"]
         if detail:
             lines += ["", "<code>{}</code>".format(html.escape(str(detail)[:350]))]
     else:
         lines = [
-            "✅ <b>CGV 감시 정상</b>",
+            "✅ <b>CGV 최근 조회 성공</b>",
             "",
-            "CGV 조회가 정상적으로 동작 중입니다.",
-            "메가박스·롯데시네마 감시도 계속됩니다.",
+            "마지막 실제 시도  {}".format(attempt_txt),
+            "연속 실패        0회",
+            "CGV는 약 3분 주기로 실제 조회합니다.",
+            "메가박스·롯데시네마 감시는 계속됩니다.",
         ]
 
-    lines += ["", "마지막 상태 갱신  " + now_txt]
     return "\n".join(lines)
 
 
-def update_cgv_status_message(state, blocked, detail=None):
-    """상태 메시지 하나만 만들고 이후에는 같은 메시지를 계속 수정한다.
-
-    message_id를 state.json에 저장한다. 사용자가 메시지를 지웠거나 수정에
-    실패하면 새 상태 메시지를 한 번 만들고 그 ID로 갈아탄다.
-    봇에 고정 권한이 있으면 자동으로 고정도 시도한다.
-    """
-    blocked_at = state.get("blocked_at")
-    text = build_cgv_status_message(blocked, blocked_at, detail)
+def update_cgv_status_message(state, failed, detail=None):
+    """상태 메시지 하나만 만들고 이후에는 같은 메시지를 계속 수정한다."""
+    text = build_cgv_status_message(state, failed, detail)
     message_id = state.get("cgv_status_message_id")
 
     if message_id:
@@ -480,6 +481,8 @@ def run_once(cfg, state, dry_run=False):
     alive_movie_keys = set()
     messages = []
     cgv_blocked_this_cycle = False
+    cgv_attempted_this_cycle = False
+    cgv_failure_detail = None
 
     if not cfg["targets"]:
         log("감시 대상이 없습니다. 설정 프로그램에서 추가하세요.")
@@ -538,6 +541,9 @@ def run_once(cfg, state, dry_run=False):
         # 게이트는 지점당 한 번만 조회한다. 같은 지점을 여러 대상이
         # 보고 있어도 요청이 늘지 않는다.
         if site_no not in new_gates:
+            is_cgv = not chains.is_megabox(site_no) and not chains.is_lotte(site_no)
+            if is_cgv:
+                cgv_attempted_this_cycle = True
             try:
                 new_gates[site_no] = gate_snapshot(site_no, cfg)
         
@@ -555,19 +561,7 @@ def run_once(cfg, state, dry_run=False):
 
             except cgv_api.CloudflareBlocked as exc:
                 cgv_blocked_this_cycle = True
-
-                now = time.time()
-                if not state.get("blocked"):
-                    state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
-                state["blocked"] = True
-
-                if not state.get("_cgv_status_blocked_notified"):
-                    try:
-                        update_cgv_status_message(state, True, exc)
-                        state["_cgv_status_blocked_notified"] = True
-                    except Exception as inner:
-                        log("CGV 상태 메시지 갱신 실패(무시): {}".format(inner))
-
+                cgv_failure_detail = str(exc)
                 log("  {}: CGV 403 → 이번 사이클 나머지 CGV도 건너뜀".format(label))
                 continue
         
@@ -610,19 +604,7 @@ def run_once(cfg, state, dry_run=False):
                 continue
             except cgv_api.CloudflareBlocked as exc:
                 cgv_blocked_this_cycle = True
-
-                now = time.time()
-                if not state.get("blocked"):
-                    state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
-                state["blocked"] = True
-
-                if not state.get("_cgv_status_blocked_notified"):
-                    try:
-                        update_cgv_status_message(state, True, exc)
-                        state["_cgv_status_blocked_notified"] = True
-                    except Exception as inner:
-                        log("CGV 상태 메시지 갱신 실패(무시): {}".format(inner))
-
+                cgv_failure_detail = str(exc)
                 log("  {}: CGV 상세조회 403 → 이번 사이클 나머지 CGV도 건너뜀".format(label))
                 continue
         all_rows = scanned[site_no]
@@ -685,6 +667,8 @@ def run_once(cfg, state, dry_run=False):
     state["initialized"] = True
     state["last_run"] = datetime.now(KST).isoformat(timespec="seconds")
     state["_cgv_blocked_this_cycle"] = cgv_blocked_this_cycle
+    state["_cgv_attempted_this_cycle"] = cgv_attempted_this_cycle
+    state["_cgv_failure_detail"] = cgv_failure_detail
     return messages, state
 
 
@@ -794,25 +778,42 @@ def cycle(cfg, dry_run):
     messages, state = run_once(cfg, state, dry_run)
     sent = deliver(messages, state, dry_run)
 
-    # 여기까지 왔으면 조회가 정상이었다는 뜻이다. 직전에 403으로 막혀
-    # 있었다면 풀렸다고 알린다. 전송에 성공했을 때만 기록을 지워서,
-    # 텔레그램이 잠시 죽어 있었으면 다음 실행에서 다시 시도한다.
+    # CGV는 감속 사이클에는 실제 요청을 하지 않는다.
+    # 실제 요청을 한 사이클에서만 상태판을 갱신한다.
     cgv_blocked_now = bool(state.pop("_cgv_blocked_this_cycle", False))
+    cgv_attempted_now = bool(state.pop("_cgv_attempted_this_cycle", False))
+    cgv_failure_detail = state.pop("_cgv_failure_detail", None)
 
-    state.pop("_cgv_status_blocked_notified", None)
+    if cgv_attempted_now and not dry_run:
+        now_iso = datetime.now(KST).isoformat(timespec="seconds")
+        state["cgv_last_attempt"] = now_iso
 
-    if blocked_at and not cgv_blocked_now and not dry_run:
-        state["blocked"] = False
-        try:
-            update_cgv_status_message(state, False)
-            log("  CGV 상태판을 정상으로 갱신")
-        except Exception as exc:
-            log("CGV 정상 상태판 갱신 실패(무시): {}".format(exc))
+        if cgv_blocked_now:
+            state["cgv_fail_count"] = int(state.get("cgv_fail_count", 0) or 0) + 1
+            state["blocked"] = True
+            if state["cgv_fail_count"] == 1:
+                state["blocked_at"] = now_iso
+            try:
+                update_cgv_status_message(state, True, cgv_failure_detail)
+                log("  CGV 상태판을 최근 조회 실패로 갱신")
+            except Exception as exc:
+                log("CGV 실패 상태판 갱신 실패(무시): {}".format(exc))
+        else:
+            state["cgv_fail_count"] = 0
+            state["cgv_last_success"] = now_iso
+            state["blocked"] = False
+            state.pop("blocked_at", None)
+            try:
+                update_cgv_status_message(state, False)
+                log("  CGV 상태판을 최근 조회 성공으로 갱신")
+            except Exception as exc:
+                log("CGV 성공 상태판 갱신 실패(무시): {}".format(exc))
 
-    # 상태판이 아직 한 번도 만들어지지 않았다면 정상 상태로 1회 생성한다.
+    # 상태판이 아직 없다면 현재 저장된 최근 결과로 1회 생성한다.
     if not dry_run and not state.get("cgv_status_message_id"):
         try:
-            update_cgv_status_message(state, bool(state.get("blocked")))
+            failed = bool(state.get("blocked"))
+            update_cgv_status_message(state, failed)
         except Exception as exc:
             log("CGV 상태판 생성 실패(무시): {}".format(exc))
 
@@ -851,14 +852,16 @@ def main():
             log("조회 차단: {}".format(exc))
             try:
                 state = load_state()
-                if not state.get("blocked"):
-                    state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
+                now_iso = datetime.now(KST).isoformat(timespec="seconds")
+                state["cgv_last_attempt"] = now_iso
+                state["cgv_fail_count"] = int(state.get("cgv_fail_count", 0) or 0) + 1
                 state["blocked"] = True
+                if state["cgv_fail_count"] == 1:
+                    state["blocked_at"] = now_iso
                 update_cgv_status_message(state, True, exc)
                 save_state(state)
             except Exception as inner:
                 log("상태판 갱신도 실패: {}".format(inner))
-            # 루프 모드에서도 즉시 종료한다. 다음 트리거에서 다시 시도한다.
             return 1
         except Exception:
             log("예상치 못한 오류:\n" + traceback.format_exc())
