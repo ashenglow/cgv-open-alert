@@ -50,6 +50,7 @@ from pathlib import Path
 import cgv_api
 import chains
 import megabox_api
+import lotte_api
 import notifier
 import telegram_bot
 
@@ -362,9 +363,10 @@ def build_recovered_message(blocked_at):
 
 # ---------------------------------------------------------------- 감시
 
-def gate_snapshot(site_no):
+def gate_snapshot(site_no, cfg=None):
     """상세 스캔이 필요한지 판단하는 값. 극장사별 차이는 chains 가 흡수한다."""
-    return chains.gate(site_no)
+    target_date = (cfg or {}).get("target_date")
+    return chains.gate(site_no, target_date=target_date)
 
 
 def scan_site(site_no, dates, cfg=None, state=None):
@@ -477,7 +479,7 @@ def run_once(cfg, state, dry_run=False):
         # 보고 있어도 요청이 늘지 않는다.
         if site_no not in new_gates:
             try:
-                new_gates[site_no] = gate_snapshot(site_no)
+                new_gates[site_no] = gate_snapshot(site_no, cfg)
         
             except megabox_api.MegaboxError as exc:
                 log("  {}: 메가박스 조회 실패 → 이번 사이클만 건너뜀: {}".format(
@@ -658,7 +660,7 @@ def check_summary():
     for target in cfg["targets"]:
         site_no = target["site_no"]
         try:
-            dates = gate_snapshot(site_no)["dates"]
+            dates = gate_snapshot(site_no, cfg)["dates"]
 
             target_date = cfg.get("target_date")
             if target_date:
