@@ -25,6 +25,7 @@ import hashlib
 import cgv_api
 import chains
 import megabox_api
+import lotte_api
 import notifier
 
 MAX_BUTTON_ROWS = 30
@@ -89,7 +90,7 @@ def _target_token(target):
 
 def help_text():
     return "\n".join([
-        "<b>CGV·메가박스 예매 오픈 알리미</b>",
+        "<b>CGV·메가박스·롯데시네마 예매 오픈 알리미</b>",
         "",
         "/list — 감시 목록 보기 · 삭제",
         "/add — 감시 대상 추가",
@@ -123,6 +124,7 @@ def chain_view():
     return ("어느 <b>극장</b>인가요?", [[
         {"text": "CGV", "callback_data": "ch|c"},
         {"text": "메가박스", "callback_data": "ch|m"},
+        {"text": "롯데시네마", "callback_data": "ch|l"},
     ]])
 
 
@@ -134,9 +136,19 @@ def _megabox_regions():
     return areas
 
 
+def _lotte_regions():
+    """지역 -> [(지점명, 내부 지점번호)]."""
+    areas = {}
+    for b in lotte_api.get_branches():
+        areas.setdefault(b["area"], []).append((b["name"], b["no"]))
+    return areas
+
+
 def region_view(chain="c"):
     if chain == "m":
         names = list(_megabox_regions())
+    elif chain == "l":
+        names = list(_lotte_regions())
     else:
         names = [r["regnGrpNm"] for r in cgv_api.get_regions()]
     buttons = [{"text": nm, "callback_data": "r|{}|{}".format(chain, nm)}
@@ -149,6 +161,9 @@ def site_view(chain, region_nm):
     if chain == "m":
         sites = [(nm, chains.MEGABOX_PREFIX + no)
                  for nm, no in _megabox_regions().get(region_nm, [])]
+    elif chain == "l":
+        sites = [(nm, chains.LOTTE_PREFIX + no)
+                 for nm, no in _lotte_regions().get(region_nm, [])]
     else:
         regions = cgv_api.get_regions()
         region = next((r for r in regions if r["regnGrpNm"] == region_nm), None)
@@ -162,7 +177,10 @@ def site_view(chain, region_nm):
 
 def screen_view(site_nm, site_no):
     """그 지점에 실제로 있는 상영관만 보여준다."""
-    if chains.is_megabox(site_no):
+    if chains.is_lotte(site_no):
+        note = "롯데시네마는 현재 전 상영관 기준으로 등록합니다"
+        buttons = []
+    elif chains.is_megabox(site_no):
         try:
             kinds = megabox_api.get_screen_kinds(chains.code(site_no))
         except Exception:
@@ -543,7 +561,10 @@ def _finish(draft, keyword):
         "site_nm": draft["site_nm"],
         # 메가박스는 아이맥스가 없으므로 기본값을 다르게 잡는다.
         "screen": draft.get("screen") or (
-            "ALL" if chains.is_megabox(draft["site_no"]) else "아이맥스"),
+            "ALL"
+            if (chains.is_megabox(draft["site_no"]) or chains.is_lotte(draft["site_no"]))
+            else "아이맥스"
+        ),
         "movie_keyword": keyword,
         "notify": "schedule" if keyword else "movie",
     }
