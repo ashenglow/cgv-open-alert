@@ -109,3 +109,33 @@ def discover_chat_id(token):
             seen.add(cid)
             out.append((cid, name))
     return out
+
+
+def edit_message(message_id, text, chat_id=None):
+    """기존 텔레그램 메시지의 본문만 수정한다."""
+    env_token, env_chat = credentials()
+    token = env_token
+    chat_id = chat_id or env_chat
+    if not token or not chat_id:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 가 없습니다.")
+    return _call(token, "editMessageText", {
+        "chat_id": chat_id,
+        "message_id": int(message_id),
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    })
+
+
+def pin_message(message_id, chat_id=None):
+    """가능하면 상태 메시지를 채팅방에 고정한다. 권한이 없으면 호출자가 무시하면 된다."""
+    env_token, env_chat = credentials()
+    token = env_token
+    chat_id = chat_id or env_chat
+    if not token or not chat_id:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 가 없습니다.")
+    return _call(token, "pinChatMessage", {
+        "chat_id": chat_id,
+        "message_id": int(message_id),
+        "disable_notification": True,
+    })
