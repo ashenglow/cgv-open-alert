@@ -1,0 +1,38 @@
+name: Lotte probe
+
+on:
+  push:
+    paths:
+      - ".github/workflows/lotte-probe.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe Seoul Lotte 2026-10-03
+        run: |
+          python - <<'PY'
+          import json
+          import lotte_api
+
+          branches = [b for b in lotte_api.get_branches() if b.get("area") == "서울"]
+          out = []
+          for b in branches:
+              try:
+                  rows = lotte_api.get_schedules(b["no"], "20261003")
+                  chi = [r for r in rows if "치이카와" in (r.get("movNm") or "")]
+                  out.append({
+                      "name": b["name"],
+                      "no": b["no"],
+                      "total_rows": len(rows),
+                      "chiikawa_rows": len(chi),
+                      "chiikawa_times": [r.get("scnsrtTm") for r in chi],
+                  })
+              except Exception as e:
+                  out.append({"name": b["name"], "no": b["no"], "error": repr(e)})
+          print("LOTTE_PROBE_JSON=" + json.dumps(out, ensure_ascii=False))
+          PY
