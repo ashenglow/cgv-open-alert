@@ -42,6 +42,70 @@
       "movie_keyword": "치이카와",
       "notify": "movie"
     },
+
+    {
+      "site_no": "0056",
+      "site_nm": "강남",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0229",
+      "site_nm": "건대입구",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0063",
+      "site_nm": "대학로",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0252",
+      "site_nm": "동대문",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0150",
+      "site_nm": "신촌아트레온",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0112",
+      "site_nm": "여의도",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0292",
+      "site_nm": "연남",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0059",
+      "site_nm": "영등포타임스퀘어",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0074",
+      "site_nm": "왕십리",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
     {
       "site_no": "0013",
       "site_nm": "용산아이파크몰",
@@ -50,24 +114,33 @@
       "notify": "movie"
     },
     {
-      "site_no": "0009",
-      "site_nm": "명동",
+      "site_no": "0199",
+      "site_nm": "천호",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
     },
     {
-      "site_no": "0056",
-      "site_nm": "강남",
+      "site_no": "0223",
+      "site_nm": "피카디리1958",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0191",
+      "site_nm": "홍대",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
     }
   ],
+  
   "target_date": "20261003",
   "cgv_every_runs": 3,
   "full_scan_every_runs": 30,
   "notify_on_first_run": false,
+  
   "quiet_hours": {
     "start": 1,
     "end": 7,
