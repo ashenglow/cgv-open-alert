@@ -55,6 +55,13 @@
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "schedule"
+    },
+    {
+      "site_no": "0056",
+      "site_nm": "강남",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "schedule"
     }
   ],
   "full_scan_every_runs": 30,
