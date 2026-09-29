@@ -18,25 +18,40 @@ import urllib.parse
 
 import cgv_api
 import megabox_api
+import lotte_api
 
 MEGABOX_PREFIX = "MB"
+LOTTE_PREFIX = "LT"
 
 # 어느 극장사든 '조회가 막혔다'는 이 둘 중 하나로 올라온다.
-BLOCKED_ERRORS = (cgv_api.CloudflareBlocked, megabox_api.Blocked)
+BLOCKED_ERRORS = (cgv_api.CloudflareBlocked, megabox_api.Blocked, lotte_api.Blocked)
 
 
 def is_megabox(site):
     return str(site).upper().startswith(MEGABOX_PREFIX)
 
 
+def is_lotte(site):
+    return str(site).upper().startswith(LOTTE_PREFIX)
+
+
 def code(site):
     """극장사 접두어를 뗀 실제 지점번호."""
-    return str(site)[len(MEGABOX_PREFIX):] if is_megabox(site) else str(site)
+    value = str(site)
+    if is_megabox(value):
+        return value[len(MEGABOX_PREFIX):]
+    if is_lotte(value):
+        return value[len(LOTTE_PREFIX):]
+    return value
 
 
 def label(site):
     """알림 메시지에 붙는 극장사 이름."""
-    return "메가박스" if is_megabox(site) else "CGV"
+    if is_megabox(site):
+        return "메가박스"
+    if is_lotte(site):
+        return "롯데시네마"
+    return "CGV"
 
 
 def gate(site):
@@ -47,6 +62,8 @@ def gate(site):
     """
     if is_megabox(site):
         return megabox_api.get_gate(code(site))
+    if is_lotte(site):
+        return lotte_api.get_gate(code(site))
     # 특별관 현황 요청 하나에 아이맥스·4DX·SCREENX 편수가 전부 담겨 온다.
     # 예전에는 아이맥스만 꺼내 쓰고 나머지를 버렸다. 그러면 이미 열린
     # 날짜에 4DX 로 새 영화가 끼어드는 것을 게이트가 못 잡아서, 정기 전체
@@ -65,12 +82,16 @@ def schedules(site, ymd):
     """그 지점 그 날짜의 회차 목록. 두 극장사 모두 CGV 필드명으로 돌려준다."""
     if is_megabox(site):
         return megabox_api.get_schedules(code(site), ymd)
+    if is_lotte(site):
+        return lotte_api.get_schedules(code(site), ymd)
     return cgv_api.get_schedules(site, ymd)
 
 
 def jitter(site):
     if is_megabox(site):
         megabox_api._jitter()
+    elif is_lotte(site):
+        lotte_api._jitter()
     else:
         cgv_api._jitter()
 
@@ -82,6 +103,8 @@ def booking_url(site, site_nm):
     """예매 화면 웹링크. CGV 주소는 지금까지 쓰던 것과 같아야 한다."""
     if is_megabox(site):
         return megabox_api.booking_url(code(site))
+    if is_lotte(site):
+        return lotte_api.booking_url(code(site))
     return "{}/cinema?siteNo={}&siteNm={}".format(
         CGV_BOOK_URL, site, urllib.parse.quote(site_nm))
 
