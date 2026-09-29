@@ -488,7 +488,19 @@ def run_once(cfg, state, dry_run=False):
                     label, exc
                 ))
                 continue
+
+            except lotte_api.LotteError as exc:
+                log("  {}: 롯데시네마 조회 실패 → 이번 사이클만 건너뜀: {}".format(
+                    label, exc
+                ))
+                continue
         
+            except lotte_api.LotteError as exc:
+                log("  {}: 롯데시네마 상세조회 실패 → 이번 사이클만 건너뜀: {}".format(
+                    label, exc
+                ))
+                continue
+
             except cgv_api.CloudflareBlocked as exc:
                 cgv_blocked_this_cycle = True
 
