@@ -344,21 +344,66 @@ def build_movie_message(site_nm, mov_nm, rows, site_no=""):
     ])
 
 
-def build_recovered_message(blocked_at):
-    """403 차단에서 풀렸을 때 보내는 알림.
+def build_cgv_status_message(blocked, blocked_at=None, detail=None):
+    """CGV 감시 상태를 한 개의 텔레그램 상태판으로 보여준다."""
+    now_txt = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
 
-    차단 경고만 보내고 끝나면 감시가 아예 죽은 건지 알 수 없다.
-    다시 정상 조회되는 순간 한 번 알려서 살아 있음을 확인시켜 준다.
-    """
-    lines = ["✅ <b>CGV 접근이 정상으로 돌아왔습니다.</b>", ""]
-    try:
-        when = datetime.fromisoformat(blocked_at).strftime("%H:%M")
-        lines.append("{}에 403으로 막혔지만 지금은 정상 조회됩니다.".format(when))
-    except (TypeError, ValueError):
-        lines.append("403으로 막혔지만 지금은 정상 조회됩니다.")
-    lines += ["감시를 계속합니다.", "",
-              datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")]
+    if blocked:
+        lines = ["⚠️ <b>CGV 감시 일시 중단</b>", ""]
+        try:
+            when = datetime.fromisoformat(blocked_at).strftime("%H:%M")
+            lines.append("{}부터 CGV가 403으로 차단 중입니다.".format(when))
+        except (TypeError, ValueError):
+            lines.append("CGV가 403으로 차단 중입니다.")
+        lines += [
+            "다음 CGV 점검 때 자동으로 다시 시도합니다.",
+            "메가박스·롯데시네마 감시는 계속됩니다.",
+        ]
+        if detail:
+            lines += ["", "<code>{}</code>".format(html.escape(str(detail)[:350]))]
+    else:
+        lines = [
+            "✅ <b>CGV 감시 정상</b>",
+            "",
+            "CGV 조회가 정상적으로 동작 중입니다.",
+            "메가박스·롯데시네마 감시도 계속됩니다.",
+        ]
+
+    lines += ["", "마지막 상태 갱신  " + now_txt]
     return "\n".join(lines)
+
+
+def update_cgv_status_message(state, blocked, detail=None):
+    """상태 메시지 하나만 만들고 이후에는 같은 메시지를 계속 수정한다.
+
+    message_id를 state.json에 저장한다. 사용자가 메시지를 지웠거나 수정에
+    실패하면 새 상태 메시지를 한 번 만들고 그 ID로 갈아탄다.
+    봇에 고정 권한이 있으면 자동으로 고정도 시도한다.
+    """
+    blocked_at = state.get("blocked_at")
+    text = build_cgv_status_message(blocked, blocked_at, detail)
+    message_id = state.get("cgv_status_message_id")
+
+    if message_id:
+        try:
+            notifier.edit_message(message_id, text)
+            return
+        except Exception as exc:
+            log("CGV 상태 메시지 수정 실패 → 새로 생성: {}".format(exc))
+            state.pop("cgv_status_message_id", None)
+
+    result = notifier.send(text)
+    try:
+        message_id = (result.get("result") or {}).get("message_id")
+    except AttributeError:
+        message_id = None
+
+    if message_id:
+        state["cgv_status_message_id"] = int(message_id)
+        try:
+            notifier.pin_message(message_id)
+        except Exception as exc:
+            log("CGV 상태 메시지 자동 고정 실패(무시): {}".format(exc))
 
 
 # ---------------------------------------------------------------- 감시
@@ -516,17 +561,12 @@ def run_once(cfg, state, dry_run=False):
                     state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
                 state["blocked"] = True
 
-                if now - float(state.get("last_block_warn", 0)) >= 3600:
-                    state["last_block_warn"] = now
-                    messages.append((
-                        "⚠️ <b>CGV 접근이 403으로 차단됐습니다.</b>\n\n"
-                        "이번 사이클의 나머지 CGV 조회는 중단하고 "
-                        "<b>메가박스 감시는 계속합니다.</b>\n"
-                        "다음 CGV 점검 때 자동으로 다시 시도합니다.\n\n"
-                        "<code>{}</code>".format(html.escape(str(exc)[:500])),
-                        [],
-                        None,
-                    ))
+                if not state.get("_cgv_status_blocked_notified"):
+                    try:
+                        update_cgv_status_message(state, True, exc)
+                        state["_cgv_status_blocked_notified"] = True
+                    except Exception as inner:
+                        log("CGV 상태 메시지 갱신 실패(무시): {}".format(inner))
 
                 log("  {}: CGV 403 → 이번 사이클 나머지 CGV도 건너뜀".format(label))
                 continue
@@ -576,17 +616,12 @@ def run_once(cfg, state, dry_run=False):
                     state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
                 state["blocked"] = True
 
-                if now - float(state.get("last_block_warn", 0)) >= 3600:
-                    state["last_block_warn"] = now
-                    messages.append((
-                        "⚠️ <b>CGV 상세조회가 403으로 차단됐습니다.</b>\n\n"
-                        "이번 사이클의 나머지 CGV 조회는 중단하고 "
-                        "<b>메가박스 감시는 계속합니다.</b>\n"
-                        "다음 CGV 점검 때 자동으로 다시 시도합니다.\n\n"
-                        "<code>{}</code>".format(html.escape(str(exc)[:500])),
-                        [],
-                        None,
-                    ))
+                if not state.get("_cgv_status_blocked_notified"):
+                    try:
+                        update_cgv_status_message(state, True, exc)
+                        state["_cgv_status_blocked_notified"] = True
+                    except Exception as inner:
+                        log("CGV 상태 메시지 갱신 실패(무시): {}".format(inner))
 
                 log("  {}: CGV 상세조회 403 → 이번 사이클 나머지 CGV도 건너뜀".format(label))
                 continue
@@ -764,13 +799,22 @@ def cycle(cfg, dry_run):
     # 텔레그램이 잠시 죽어 있었으면 다음 실행에서 다시 시도한다.
     cgv_blocked_now = bool(state.pop("_cgv_blocked_this_cycle", False))
 
+    state.pop("_cgv_status_blocked_notified", None)
+
     if blocked_at and not cgv_blocked_now and not dry_run:
+        state["blocked"] = False
         try:
-            notifier.send(build_recovered_message(blocked_at))
-            state["blocked"] = False
-            log("  복구 알림 전송 완료")
+            update_cgv_status_message(state, False)
+            log("  CGV 상태판을 정상으로 갱신")
         except Exception as exc:
-            log("복구 알림 실패(무시): {}".format(exc))
+            log("CGV 정상 상태판 갱신 실패(무시): {}".format(exc))
+
+    # 상태판이 아직 한 번도 만들어지지 않았다면 정상 상태로 1회 생성한다.
+    if not dry_run and not state.get("cgv_status_message_id"):
+        try:
+            update_cgv_status_message(state, bool(state.get("blocked")))
+        except Exception as exc:
+            log("CGV 상태판 생성 실패(무시): {}".format(exc))
 
     if not dry_run:
         save_state(state)
@@ -804,24 +848,17 @@ def main():
         try:
             cycle(cfg, args.dry_run)
         except chains.BLOCKED_ERRORS as exc:
-            log("403 차단: {}".format(exc))
-            if mark_blocked():
-                try:
-                    notifier.send(
-                        "⚠️ <b>CGV 접근이 403으로 차단됐습니다.</b>\n\n"
-                        "Cloudflare가 이번 요청을 봇으로 판정했습니다. "
-                        "이번 조회만 건너뛰고 <b>다음 실행에서 자동으로 다시 "
-                        "시도</b>합니다. 정상으로 돌아오면 복구 알림을 보냅니다.\n\n"
-                        "복구 알림 없이 이 경고만 계속 반복되면 그때는 "
-                        "cgv_api.UA 를 확인해야 합니다.\n\n"
-                        "<code>{}</code>".format(html.escape(str(exc)[:500]))
-                    )
-                except Exception as inner:
-                    log("경고 알림도 실패: {}".format(inner))
-            else:
-                log("경고는 최근에 이미 보냈으므로 생략")
-            # 루프 모드에서도 즉시 종료한다. 계속 돌아봐야 막힌 서버를
-            # 두드릴 뿐이고, 다음 트리거 때 재시도된다.
+            log("조회 차단: {}".format(exc))
+            try:
+                state = load_state()
+                if not state.get("blocked"):
+                    state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
+                state["blocked"] = True
+                update_cgv_status_message(state, True, exc)
+                save_state(state)
+            except Exception as inner:
+                log("상태판 갱신도 실패: {}".format(inner))
+            # 루프 모드에서도 즉시 종료한다. 다음 트리거에서 다시 시도한다.
             return 1
         except Exception:
             log("예상치 못한 오류:\n" + traceback.format_exc())
