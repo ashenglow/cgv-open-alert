@@ -426,6 +426,7 @@ def run_once(cfg, state, dry_run=False):
     scanned = {}          # site_no -> 전체 회차 (지점당 1회만 조회)
     alive_movie_keys = set()
     messages = []
+    cgv_blocked_this_cycle = False
 
     if not cfg["targets"]:
         log("감시 대상이 없습니다. 설정 프로그램에서 추가하세요.")
@@ -444,11 +445,17 @@ def run_once(cfg, state, dry_run=False):
         unit = granularity_of(target)
         label = describe(target)
     
+        # 이번 사이클에서 CGV 403이 한 번이라도 났으면
+        # 나머지 CGV는 더 두드리지 않고 메가박스만 계속 본다.
+        if cgv_blocked_this_cycle and not chains.is_megabox(site_no):
+            log("  {}: 이번 사이클 CGV 403 발생 → CGV 조회 생략".format(label))
+            continue
+
         # 메가박스는 매 사이클 확인.
         # CGV는 설정한 횟수마다 한 번만 확인.
         if not chains.is_megabox(site_no):
             cgv_every = max(1, int(cfg.get("cgv_every_runs", 3)))
-    
+
             if state["run_no"] % cgv_every != 1:
                 log("  {}: CGV 감속 주기라 이번 사이클 건너뜀".format(label))
                 continue
@@ -473,9 +480,26 @@ def run_once(cfg, state, dry_run=False):
                 continue
         
             except cgv_api.CloudflareBlocked as exc:
-                log("  {}: CGV 403 → 이번 사이클만 건너뜀: {}".format(
-                    label, exc
-                ))
+                cgv_blocked_this_cycle = True
+
+                now = time.time()
+                if not state.get("blocked"):
+                    state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
+                state["blocked"] = True
+
+                if now - float(state.get("last_block_warn", 0)) >= 3600:
+                    state["last_block_warn"] = now
+                    messages.append((
+                        "⚠️ <b>CGV 접근이 403으로 차단됐습니다.</b>\n\n"
+                        "이번 사이클의 나머지 CGV 조회는 중단하고 "
+                        "<b>메가박스 감시는 계속합니다.</b>\n"
+                        "다음 CGV 점검 때 자동으로 다시 시도합니다.\n\n"
+                        "<code>{}</code>".format(html.escape(str(exc)[:500])),
+                        [],
+                        None,
+                    ))
+
+                log("  {}: CGV 403 → 이번 사이클 나머지 CGV도 건너뜀".format(label))
                 continue
         
         snap = new_gates[site_no]
@@ -503,11 +527,34 @@ def run_once(cfg, state, dry_run=False):
                     if d == target_date
                 ]
         
-            scanned[site_no] = scan_site(
-                site_no,
-                dates_to_scan,
-                cfg,
-            )
+            try:
+                scanned[site_no] = scan_site(
+                    site_no,
+                    dates_to_scan,
+                    cfg,
+                )
+            except cgv_api.CloudflareBlocked as exc:
+                cgv_blocked_this_cycle = True
+
+                now = time.time()
+                if not state.get("blocked"):
+                    state["blocked_at"] = datetime.now(KST).isoformat(timespec="seconds")
+                state["blocked"] = True
+
+                if now - float(state.get("last_block_warn", 0)) >= 3600:
+                    state["last_block_warn"] = now
+                    messages.append((
+                        "⚠️ <b>CGV 상세조회가 403으로 차단됐습니다.</b>\n\n"
+                        "이번 사이클의 나머지 CGV 조회는 중단하고 "
+                        "<b>메가박스 감시는 계속합니다.</b>\n"
+                        "다음 CGV 점검 때 자동으로 다시 시도합니다.\n\n"
+                        "<code>{}</code>".format(html.escape(str(exc)[:500])),
+                        [],
+                        None,
+                    ))
+
+                log("  {}: CGV 상세조회 403 → 이번 사이클 나머지 CGV도 건너뜀".format(label))
+                continue
         all_rows = scanned[site_no]
         alive_movie_keys.update(movie_key(site_no, r) for r in all_rows)
 
@@ -567,6 +614,7 @@ def run_once(cfg, state, dry_run=False):
     state["gates"] = new_gates
     state["initialized"] = True
     state["last_run"] = datetime.now(KST).isoformat(timespec="seconds")
+    state["_cgv_blocked_this_cycle"] = cgv_blocked_this_cycle
     return messages, state
 
 
@@ -679,7 +727,9 @@ def cycle(cfg, dry_run):
     # 여기까지 왔으면 조회가 정상이었다는 뜻이다. 직전에 403으로 막혀
     # 있었다면 풀렸다고 알린다. 전송에 성공했을 때만 기록을 지워서,
     # 텔레그램이 잠시 죽어 있었으면 다음 실행에서 다시 시도한다.
-    if blocked_at and not dry_run:
+    cgv_blocked_now = bool(state.pop("_cgv_blocked_this_cycle", False))
+
+    if blocked_at and not cgv_blocked_now and not dry_run:
         try:
             notifier.send(build_recovered_message(blocked_at))
             state["blocked"] = False
