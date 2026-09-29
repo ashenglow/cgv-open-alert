@@ -34,6 +34,13 @@
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "schedule"
+    },
+    {
+      "site_no": "MB1341",
+      "site_nm": "강동",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "schedule"
     }
   ],
   "full_scan_every_runs": 30,
