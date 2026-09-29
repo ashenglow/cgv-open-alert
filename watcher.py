@@ -154,9 +154,15 @@ def describe(target):
     screen = screen_of(target)
     screen_txt = "전 상영관" if screen == SCREEN_ALL else screen
     movie_txt = target.get("movie_keyword") or "전체 영화"
-    unit = "새 영화" if granularity_of(target) == "movie" else "새 회차"
-    return "{}/{}/{} ({})".format(
-        target.get("site_nm", target["site_no"]), screen_txt, movie_txt, unit)
+    unit = "첫 오픈" if granularity_of(target) == "movie" else "새 회차"
+
+    return "{} {}/{}/{} ({})".format(
+        chains.label(target["site_no"]),
+        target.get("site_nm", target["site_no"]),
+        screen_txt,
+        movie_txt,
+        unit,
+    )
 
 
 # ---------------------------------------------------------------- 포맷
@@ -448,7 +454,14 @@ def run_once(cfg, state, dry_run=False):
         # 게이트는 지점당 한 번만 조회한다. 같은 지점을 여러 대상이
         # 보고 있어도 요청이 늘지 않는다.
         if site_no not in new_gates:
-            new_gates[site_no] = gate_snapshot(site_no)
+            try:
+                new_gates[site_no] = gate_snapshot(site_no)
+            except megabox_api.MegaboxError as exc:
+                log("  {}: 메가박스 조회 실패 → 이번 사이클만 건너뜀: {}".format(
+                    label, exc
+                ))
+                continue
+
         snap = new_gates[site_no]
         changed = old_gates.get(site_no) != snap
 
@@ -460,7 +473,20 @@ def run_once(cfg, state, dry_run=False):
                "첫 실행" if first_run else
                "게이트 변화" if changed else "정기 전체 스캔")
         if site_no not in scanned:
-            scanned[site_no] = scan_site(site_no, snap["dates"], cfg)
+            dates_to_scan = snap["dates"]
+        
+            target_date = cfg.get("target_date")
+            if target_date:
+                dates_to_scan = [
+                    d for d in dates_to_scan
+                    if d == target_date
+                ]
+        
+            scanned[site_no] = scan_site(
+                site_no,
+                dates_to_scan,
+                cfg,
+            )
         all_rows = scanned[site_no]
         alive_movie_keys.update(movie_key(site_no, r) for r in all_rows)
 
@@ -557,8 +583,16 @@ def check_summary():
         site_no = target["site_no"]
         try:
             dates = gate_snapshot(site_no)["dates"]
-            rows = select_rows(scan_site(site_no, dates),
-                               screen_of(target), target.get("movie_keyword", ""))
+
+            target_date = cfg.get("target_date")
+            if target_date:
+                dates = [d for d in dates if d == target_date]
+            
+            rows = select_rows(
+                scan_site(site_no, dates),
+                screen_of(target),
+                target.get("movie_keyword", ""),
+            )
         except Exception as exc:
             lines.append("{} — 조회 실패: {}".format(describe(target), exc))
             continue
