@@ -367,11 +367,16 @@ def gate_snapshot(site_no):
     return chains.gate(site_no)
 
 
-def scan_site(site_no, dates, cfg=None):
+def scan_site(site_no, dates, cfg=None, state=None):
     """지점의 모든 열린 날짜에서 전체 시간표를 모은다 (상영관 필터 없음).
 
     날짜 하나를 조회할 때마다 텔레그램 명령도 확인해서
     /add 버튼 반응이 오래 막히지 않게 한다.
+
+    run_once 중에는 같은 state 객체를 넘겨 받아 사용한다.
+    여기서 별도로 load_state() 한 뒤 저장하면, 바깥 run_once가 가진
+    오래된 tg_offset이 나중에 다시 저장되어 같은 버튼 콜백을
+    중복 처리할 수 있기 때문이다.
     """
     rows = []
 
@@ -379,9 +384,8 @@ def scan_site(site_no, dates, cfg=None):
         rows.extend(chains.schedules(site_no, ymd))
         chains.jitter(site_no)
 
-        if cfg is not None:
+        if cfg is not None and state is not None:
             try:
-                state = load_state()
                 changed, _ = telegram_bot.handle(
                     cfg,
                     state,
@@ -391,6 +395,8 @@ def scan_site(site_no, dates, cfg=None):
                 )
                 if changed:
                     save_config(cfg)
+                # 콜백 offset은 즉시 저장하되, 같은 객체를 사용하므로
+                # run_once 종료 시 예전 값으로 되돌아가지 않는다.
                 save_state(state)
             except Exception as exc:
                 log("스캔 중 봇 명령 처리 실패(무시): {}".format(exc))
@@ -532,6 +538,7 @@ def run_once(cfg, state, dry_run=False):
                     site_no,
                     dates_to_scan,
                     cfg,
+                    state,
                 )
             except cgv_api.CloudflareBlocked as exc:
                 cgv_blocked_this_cycle = True
