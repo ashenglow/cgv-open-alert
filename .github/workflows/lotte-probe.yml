@@ -34,5 +34,10 @@ jobs:
                   })
               except Exception as e:
                   out.append({"name": b["name"], "no": b["no"], "error": repr(e)})
-          print("LOTTE_PROBE_JSON=" + json.dumps(out, ensure_ascii=False))
+          with open("lotte_probe.json", "w", encoding="utf-8") as fp:
+              json.dump(out, fp, ensure_ascii=False, indent=2)
           PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lotte-probe
+          path: lotte_probe.json
