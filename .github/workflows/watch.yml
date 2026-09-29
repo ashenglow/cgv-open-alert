@@ -31,11 +31,6 @@ jobs:
         with:
           python-version: "3.12"
           
-      - name: Install Playwright
-        run: |
-          python -m pip install playwright
-          python -m playwright install --with-deps chromium    
-
       - name: 감시 실행 (60초 간격으로 4분간)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
