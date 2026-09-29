@@ -46,8 +46,8 @@ HEADERS = {
     "X-Requested-With": "XMLHttpRequest",
 }
 
-TIMEOUT = 15
-RETRIES = 3
+TIMEOUT = 6
+RETRIES = 1
 
 # theabKindCd -> 사람이 쓰는 이름. 감시 대상의 'screen' 값과 맞춰야 한다.
 SCREEN_KINDS = {
