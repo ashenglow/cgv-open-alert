@@ -59,6 +59,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from curl_cffi import requests
+
 BASE = "https://cgv.co.kr/api/v1"
 CO_CD = "A420"           # CGV 회사코드
 RTCTL_SCOP_CD = "01"     # 발매통제범위코드
@@ -85,6 +87,8 @@ BROWSER_HINTS = {
 TIMEOUT = 10
 RETRIES = 3
 
+SESSION = requests.Session(impersonate="chrome")
+
 
 class CgvError(RuntimeError):
     """CGV 조회 실패."""
@@ -96,58 +100,72 @@ class CloudflareBlocked(CgvError):
 
 def _get(path, **params):
     params.setdefault("coCd", CO_CD)
-    url = BASE + "/" + path + "?" + urllib.parse.urlencode(params)
+
+    url = BASE + "/" + path
+
+    # curl_cffi가 Chrome의 TLS/HTTP 지문을 사용하므로
+    # UA/sec-ch-ua를 직접 꾸미지 않고 실제 필요한 요청 헤더만 보낸다.
     headers = {
-        "User-Agent": UA,
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "ko-KR,ko;q=0.9",
         "Referer": "https://cgv.co.kr/cnm/movieBook",
         "Origin": "https://cgv.co.kr",
     }
-    headers.update(BROWSER_HINTS)
-    req = urllib.request.Request(url, headers=headers)
 
     last = None
+
     for attempt in range(RETRIES):
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-                raw = resp.read()
-                if resp.headers.get("Content-Encoding") == "gzip":
-                    raw = gzip.decompress(raw)
-                body = json.loads(raw.decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            if exc.code == 403:
+            resp = SESSION.get(
+                url,
+                params=params,
+                headers=headers,
+                timeout=TIMEOUT,
+            )
+
+            if resp.status_code == 403:
                 raise CloudflareBlocked(
-                    "403 Forbidden: " + url + "\n"
-                    "Cloudflare가 이 요청을 봇으로 판정했습니다. "
-                    "cgv_api 의 UA / Referer / BROWSER_HINTS 를 확인하세요. "
-                    "(CGV가 통과 조건을 또 올렸을 수 있습니다)"
-                ) from exc
-            if exc.code == 429:
-                # 속도 제한. 서버가 알려준 만큼 기다렸다가 다시 시도한다.
-                wait = exc.headers.get("Retry-After")
+                    "403 Forbidden: " + str(resp.url) + "\n"
+                    "Cloudflare가 CGV 요청을 차단했습니다."
+                )
+
+            if resp.status_code == 429:
+                wait = resp.headers.get("Retry-After")
                 try:
                     wait = int(wait)
                 except (TypeError, ValueError):
                     wait = 30 * (attempt + 1)
+
+                last = RuntimeError("429 Too Many Requests")
                 time.sleep(min(wait, 120))
-            last = exc
-        except Exception as exc:  # 네트워크 오류 등
-            last = exc
-        else:
+                continue
+
+            resp.raise_for_status()
+            body = resp.json()
+
             status = body.get("statusCode")
             if status not in (0, "0"):
                 raise CgvError(
                     path + ": " + str(body.get("statusMessage"))
-                    + " / " + json.dumps(body.get("data"), ensure_ascii=False)
+                    + " / "
+                    + json.dumps(
+                        body.get("data"),
+                        ensure_ascii=False,
+                    )
                 )
+
             return body.get("data")
+
+        except CloudflareBlocked:
+            raise
+
+        except Exception as exc:
+            last = exc
 
         if attempt < RETRIES - 1:
             time.sleep(1.5 ** attempt)
 
     raise CgvError(path + " 요청 실패: " + repr(last))
-
 
 def _jitter():
     """CGV 서버를 배려한 요청 간 지연."""
