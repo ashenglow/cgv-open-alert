@@ -10,6 +10,8 @@
     "MB1431|ALL|치이카와|movie",
     "MB1561|ALL|치이카와|movie"
   ],
+  "blocked": true,
+  "blocked_at": "2026-09-30T01:20:44+09:00",
   "gates": {
     "0009": {
       "dates": [
@@ -235,7 +237,7 @@
     }
   },
   "initialized": true,
-  "last_block_warn": 1788362723.0054746,
+  "last_block_warn": 1790698844.0972655,
   "last_run": "2026-09-30T01:12:37+09:00",
   "run_no": 36584,
   "seen": [
