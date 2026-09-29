@@ -101,7 +101,11 @@ def list_view(cfg, describe):
     for i, target in enumerate(targets):
         lines.append("{}. {}".format(i + 1, describe(target)))
         keyboard.append([{
-            "text": "❌ {}. {}".format(i + 1, target.get("site_nm", "")),
+            "text": "❌ {}. {} {}".format(
+                i + 1,
+                chains.label(target["site_no"]),
+                target.get("site_nm", ""),
+            ),
             "callback_data": "del|{}".format(i),
         }])
     return "\n".join(lines), keyboard
