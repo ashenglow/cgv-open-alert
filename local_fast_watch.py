@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import random
 import time
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -89,6 +90,19 @@ def booking_url(site_no, site_nm):
     return chains.booking_url(site_no, site_nm)
 
 
+def cgv_session_url(site_no, site_nm, row):
+    """CGV 웹 예매를 해당 날짜/지점/상영관/회차로 최대한 직접 연다."""
+    params = {
+        "movNo": row.get("movNo", ""),
+        "scnSseq": row.get("scnSseq", ""),
+        "scnYmd": row.get("scnYmd", ""),
+        "scnsNo": row.get("scnsNo", ""),
+        "siteNm": "CGV " + site_nm,
+        "siteNo": site_no,
+    }
+    return "https://cgv.co.kr/cnm/movieBook/movie?" + urllib.parse.urlencode(params)
+
+
 def matches_movie(row, keyword):
     return keyword.replace(" ", "").lower() in str(row.get("movNm") or "").replace(" ", "").lower()
 
@@ -127,17 +141,32 @@ def build_cgv_morning_message(t, new_rows, all_morning_rows):
     movie = new_rows[0].get("movNm") or t.get("movie_keyword") or "영화"
     new_times = ", ".join(fmt_time(r.get("scnsrtTm")) for r in new_rows)
     all_times = ", ".join(fmt_time(r.get("scnsrtTm")) for r in all_morning_rows)
-    return (
-        "☀️🚨 <b>CGV 새 조조(모닝) 회차 감지</b>\n\n"
+
+    is_added = len(all_morning_rows) > len(new_rows)
+    if is_added:
+        title = "☀️☀️🚨 <b>CGV 조조 추가 오픈</b>"
+        detail = "새로 추가된 조조  <b>{}</b>".format(new_times)
+    else:
+        title = "☀️🚨 <b>CGV 첫 조조 오픈</b>"
+        detail = "조조  <b>{}</b>".format(new_times)
+
+    text = (
+        "{}\n\n"
         "<b>{}</b>\n"
         "{}\n"
-        "새 조조  <b>{}</b>\n"
+        "{}\n"
         "현재 조조 전체  {}\n\n"
-        "🔗 {}"
+        "👇 <b>아래 버튼을 누르면 해당 10/3 회차 웹 예매로 이동</b>"
     ).format(
-        site_nm, movie, new_times, all_times, booking_url(site_no, site_nm)
+        title, site_nm, movie, detail, all_times
     )
 
+    keyboard = [[{
+        "text": "🎟 {} {} 바로 예매".format(site_nm, fmt_time(r.get("scnsrtTm"))),
+        "url": cgv_session_url(site_no, site_nm, r),
+    }] for r in new_rows[:4]]
+
+    return text, keyboard
 
 def fetch_rows(t, target_date):
     site_no = t["site_no"]
@@ -248,7 +277,8 @@ def main():
                 )
 
                 if new_rows:
-                    notifier.send(build_cgv_morning_message(t, new_rows, morning))
+                    message, keyboard = build_cgv_morning_message(t, new_rows, morning)
+                    notifier.send(message, keyboard=keyboard)
                     alerted.add(key)
                     state["alerted"] = sorted(alerted)
                     save_state(state)
