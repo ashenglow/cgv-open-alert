@@ -15,20 +15,6 @@
       "notify": "movie"
     },
     {
-      "site_no": "MB1561",
-      "site_nm": "이수",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "MB0041",
-      "site_nm": "더부티크목동현대백화점",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
       "site_no": "MB1341",
       "site_nm": "강동",
       "screen": "ALL",
@@ -43,8 +29,22 @@
       "notify": "movie"
     },
     {
+      "site_no": "0060",
+      "site_nm": "강동",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
       "site_no": "0229",
       "site_nm": "건대입구",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0010",
+      "site_nm": "구로",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
@@ -64,8 +64,36 @@
       "notify": "movie"
     },
     {
-      "site_no": "0150",
-      "site_nm": "신촌아트레온",
+      "site_no": "0230",
+      "site_nm": "등촌",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0009",
+      "site_nm": "명동",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0288",
+      "site_nm": "방학",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0046",
+      "site_nm": "상봉",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0300",
+      "site_nm": "성신여대입구",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
@@ -106,8 +134,22 @@
       "notify": "movie"
     },
     {
+      "site_no": "0131",
+      "site_nm": "중계",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
       "site_no": "0199",
       "site_nm": "천호",
+      "screen": "ALL",
+      "movie_keyword": "치이카와",
+      "notify": "movie"
+    },
+    {
+      "site_no": "0107",
+      "site_nm": "청담씨네시티",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
@@ -122,20 +164,6 @@
     {
       "site_no": "0191",
       "site_nm": "홍대",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "LT1_0001_1001",
-      "site_nm": "에비뉴엘(명동)",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "LT1_0001_9010",
-      "site_nm": "강동",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
