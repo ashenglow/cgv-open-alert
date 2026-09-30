@@ -1,0 +1,55 @@
+name: temporary-event-target-probe
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  probe:
+    if: github.event.head_commit.message == 'temporary event target probe'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe event theaters
+        run: |
+          python - <<'PY'
+          import megabox_api, lotte_api
+          DATE="20261003"; KEY="치이카와"
+          mega_names=["강남","강동","구의이스트폴","군자","더부티크목동현대백화점","마곡","목동","상봉","상암월드컵경기장","센트럴","코엑스","홍대","화곡"]
+          lotte_names=["가산디지털","건대입구","김포공항","노원","도곡","서울대입구","신대방(구로디지털역)","신림","영등포","용산","월드타워","은평(롯데몰)","청량리","홍대입구"]
+          def norm(s): return "".join(str(s).split())
+          print("=== MEGABOX ===")
+          try:
+              branches=megabox_api.get_branches()
+              all_by={norm(b["name"]):b for b in branches}
+              for name in mega_names:
+                  b=all_by.get(norm(name))
+                  if not b:
+                      print("MEGA|NOTFOUND|"+name); continue
+                  try:
+                      rows=megabox_api.get_schedules(b["no"],DATE)
+                      hits=[r for r in rows if KEY in (r.get("movNm") or "")]
+                      print("MEGA|{}|{}|rows={}|chiikawa={}".format(b["no"],b["name"],len(rows),len(hits)))
+                  except Exception as e:
+                      print("MEGA|{}|{}|ERROR|{}".format(b["no"],b["name"],repr(e)))
+          except Exception as e: print("MEGA|BRANCH_ERROR|"+repr(e))
+          print("=== LOTTE ===")
+          try:
+              branches=lotte_api.get_branches()
+              all_by={norm(b["name"]):b for b in branches}
+              for name in lotte_names:
+                  b=all_by.get(norm(name))
+                  if not b:
+                      print("LOTTE|NOTFOUND|"+name); continue
+                  try:
+                      rows=lotte_api.get_schedules(b["no"],DATE)
+                      hits=[r for r in rows if KEY in (r.get("movNm") or "")]
+                      print("LOTTE|{}|{}|rows={}|chiikawa={}".format(b["no"],b["name"],len(rows),len(hits)))
+                  except Exception as e:
+                      print("LOTTE|{}|{}|ERROR|{}".format(b["no"],b["name"],repr(e)))
+          except Exception as e: print("LOTTE|BRANCH_ERROR|"+repr(e))
+          PY
