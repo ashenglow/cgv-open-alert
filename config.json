@@ -100,5 +100,6 @@
     "slowdown": 10
   },
   "target_date": "20261003",
-  "cgv_every_runs": 10
+  "cgv_every_runs": 10,
+  "priority_cgv_sites": []
 }
