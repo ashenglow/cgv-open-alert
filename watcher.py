@@ -407,6 +407,70 @@ def update_cgv_status_message(state, failed, detail=None):
             log("CGV 상태 메시지 자동 고정 실패(무시): {}".format(exc))
 
 
+def build_megabox_status_message(state, failed, detail=None):
+    """메가박스의 최근 실제 조회 결과를 한 개의 상태판으로 보여준다."""
+    attempt = state.get("megabox_last_attempt")
+    try:
+        attempt_txt = datetime.fromisoformat(attempt).strftime("%H:%M:%S")
+    except (TypeError, ValueError):
+        attempt_txt = "아직 없음"
+
+    fail_count = int(state.get("megabox_fail_count", 0) or 0)
+
+    if failed:
+        lines = [
+            "⚠️ <b>메가박스 최근 조회 실패</b>",
+            "",
+            "마지막 실제 시도  {}".format(attempt_txt),
+            "연속 실패        {}회".format(fail_count),
+            "이번 사이클의 나머지 메가박스 지점은 건너뜁니다.",
+            "다음 점검 때 다른 첫 지점으로 자동 재시도합니다.",
+            "CGV·롯데시네마 감시는 계속됩니다.",
+        ]
+        if fail_count >= 3:
+            lines += ["", "⚠️ <b>여러 차례 연속 실패 중입니다.</b>"]
+        if detail:
+            lines += ["", "<code>{}</code>".format(html.escape(str(detail)[:350]))]
+    else:
+        lines = [
+            "✅ <b>메가박스 최근 조회 성공</b>",
+            "",
+            "마지막 실제 시도  {}".format(attempt_txt),
+            "연속 실패        0회",
+            "메가박스는 매 감시 사이클마다 확인합니다.",
+            "CGV·롯데시네마 감시도 계속됩니다.",
+        ]
+
+    return "\n".join(lines)
+
+
+def update_megabox_status_message(state, failed, detail=None):
+    """메가박스 상태 메시지 하나만 만들고 이후에는 같은 메시지를 수정한다."""
+    text = build_megabox_status_message(state, failed, detail)
+    message_id = state.get("megabox_status_message_id")
+
+    if message_id:
+        try:
+            notifier.edit_message(message_id, text)
+            return
+        except Exception as exc:
+            log("메가박스 상태 메시지 수정 실패 → 새로 생성: {}".format(exc))
+            state.pop("megabox_status_message_id", None)
+
+    result = notifier.send(text)
+    try:
+        message_id = (result.get("result") or {}).get("message_id")
+    except AttributeError:
+        message_id = None
+
+    if message_id:
+        state["megabox_status_message_id"] = int(message_id)
+        try:
+            notifier.pin_message(message_id)
+        except Exception as exc:
+            log("메가박스 상태 메시지 자동 고정 실패(무시): {}".format(exc))
+
+
 # ---------------------------------------------------------------- 감시
 
 def gate_snapshot(site_no, cfg=None):
@@ -483,6 +547,9 @@ def run_once(cfg, state, dry_run=False):
     cgv_blocked_this_cycle = False
     cgv_attempted_this_cycle = False
     cgv_failure_detail = None
+    megabox_failed_this_cycle = False
+    megabox_attempted_this_cycle = False
+    megabox_failure_detail = None
 
     if not cfg["targets"]:
         log("감시 대상이 없습니다. 설정 프로그램에서 추가하세요.")
@@ -493,7 +560,21 @@ def run_once(cfg, state, dry_run=False):
         state["gates"] = {}
         return messages, state
 
-    for target in cfg["targets"]:
+    # 매 사이클마다 극장사별 지점 순서를 섞는다.
+    # 특정 지점이 항상 첫 요청이 되는 패턴을 피하고, 장애가 있을 때도
+    # 다음 사이클에서는 다른 지점으로 먼저 재시험한다.
+    megabox_targets = [t for t in cfg["targets"] if chains.is_megabox(t["site_no"])]
+    cgv_targets = [
+        t for t in cfg["targets"]
+        if not chains.is_megabox(t["site_no"]) and not chains.is_lotte(t["site_no"])
+    ]
+    lotte_targets = [t for t in cfg["targets"] if chains.is_lotte(t["site_no"])]
+    random.shuffle(megabox_targets)
+    random.shuffle(cgv_targets)
+    random.shuffle(lotte_targets)
+    ordered_targets = megabox_targets + cgv_targets + lotte_targets
+
+    for target in ordered_targets:
         # 게이트 조회가 느리거나 타임아웃이어도 Telegram 명령이 오래 굶지 않도록
         # 지점 하나를 시작할 때마다 밀린 명령을 먼저 처리한다.
         if not dry_run:
@@ -513,6 +594,12 @@ def run_once(cfg, state, dry_run=False):
         keyword = target.get("movie_keyword", "")
         unit = granularity_of(target)
         label = describe(target)
+
+        # 메가박스에서 한 지점이라도 timeout/오류가 나면 같은 사이클의
+        # 나머지 메가박스 지점은 더 두드리지 않는다.
+        if megabox_failed_this_cycle and chains.is_megabox(site_no):
+            log("  {}: 이번 사이클 메가박스 실패 발생 → 메가박스 조회 생략".format(label))
+            continue
     
         # 이번 사이클에서 CGV 403이 한 번이라도 났으면
         # 나머지 CGV는 더 두드리지 않고 메가박스만 계속 본다.
@@ -544,11 +631,15 @@ def run_once(cfg, state, dry_run=False):
             is_cgv = not chains.is_megabox(site_no) and not chains.is_lotte(site_no)
             if is_cgv:
                 cgv_attempted_this_cycle = True
+            if chains.is_megabox(site_no):
+                megabox_attempted_this_cycle = True
             try:
                 new_gates[site_no] = gate_snapshot(site_no, cfg)
         
             except megabox_api.MegaboxError as exc:
-                log("  {}: 메가박스 조회 실패 → 이번 사이클만 건너뜀: {}".format(
+                megabox_failed_this_cycle = True
+                megabox_failure_detail = str(exc)
+                log("  {}: 메가박스 조회 실패 → 이번 사이클 나머지 메가박스도 건너뜀: {}".format(
                     label, exc
                 ))
                 continue
@@ -597,6 +688,13 @@ def run_once(cfg, state, dry_run=False):
                     cfg,
                     state,
                 )
+            except megabox_api.MegaboxError as exc:
+                megabox_failed_this_cycle = True
+                megabox_failure_detail = str(exc)
+                log("  {}: 메가박스 상세조회 실패 → 이번 사이클 나머지 메가박스도 건너뜀: {}".format(
+                    label, exc
+                ))
+                continue
             except lotte_api.LotteError as exc:
                 log("  {}: 롯데시네마 상세조회 실패 → 이번 사이클만 건너뜀: {}".format(
                     label, exc
@@ -669,6 +767,9 @@ def run_once(cfg, state, dry_run=False):
     state["_cgv_blocked_this_cycle"] = cgv_blocked_this_cycle
     state["_cgv_attempted_this_cycle"] = cgv_attempted_this_cycle
     state["_cgv_failure_detail"] = cgv_failure_detail
+    state["_megabox_failed_this_cycle"] = megabox_failed_this_cycle
+    state["_megabox_attempted_this_cycle"] = megabox_attempted_this_cycle
+    state["_megabox_failure_detail"] = megabox_failure_detail
     return messages, state
 
 
@@ -816,6 +917,39 @@ def cycle(cfg, dry_run):
             update_cgv_status_message(state, failed)
         except Exception as exc:
             log("CGV 상태판 생성 실패(무시): {}".format(exc))
+
+    megabox_failed_now = bool(state.pop("_megabox_failed_this_cycle", False))
+    megabox_attempted_now = bool(state.pop("_megabox_attempted_this_cycle", False))
+    megabox_failure_detail = state.pop("_megabox_failure_detail", None)
+
+    if megabox_attempted_now and not dry_run:
+        now_iso = datetime.now(KST).isoformat(timespec="seconds")
+        state["megabox_last_attempt"] = now_iso
+
+        if megabox_failed_now:
+            state["megabox_fail_count"] = int(state.get("megabox_fail_count", 0) or 0) + 1
+            try:
+                update_megabox_status_message(state, True, megabox_failure_detail)
+                log("  메가박스 상태판을 최근 조회 실패로 갱신")
+            except Exception as exc:
+                log("메가박스 실패 상태판 갱신 실패(무시): {}".format(exc))
+        else:
+            state["megabox_fail_count"] = 0
+            state["megabox_last_success"] = now_iso
+            try:
+                update_megabox_status_message(state, False)
+                log("  메가박스 상태판을 최근 조회 성공으로 갱신")
+            except Exception as exc:
+                log("메가박스 성공 상태판 갱신 실패(무시): {}".format(exc))
+
+    if not dry_run and not state.get("megabox_status_message_id"):
+        try:
+            update_megabox_status_message(
+                state,
+                bool(int(state.get("megabox_fail_count", 0) or 0)),
+            )
+        except Exception as exc:
+            log("메가박스 상태판 생성 실패(무시): {}".format(exc))
 
     if not dry_run:
         save_state(state)
