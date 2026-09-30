@@ -8,6 +8,8 @@ __pycache__/
 # 실행 부산물
 *.log
 state.json.tmp
+local_state.json
+local_state.json.tmp
 
 # 에디터
 .claude/
