@@ -1,8 +1,8 @@
 {
   "targets": [
     {
-      "site_no": "MB1371",
-      "site_nm": "센트럴",
+      "site_no": "MB1341",
+      "site_nm": "강동",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
@@ -15,8 +15,8 @@
       "notify": "movie"
     },
     {
-      "site_no": "MB1341",
-      "site_nm": "강동",
+      "site_no": "MB1371",
+      "site_nm": "센트럴",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
@@ -24,13 +24,6 @@
     {
       "site_no": "0056",
       "site_nm": "강남",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0060",
-      "site_nm": "강동",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
