@@ -35,6 +35,7 @@ STATE_FILE = Path(__file__).with_name("local_state.json")
 
 MEGABOX_INTERVAL = 12
 CGV_INTERVAL = 60
+PRIORITY_CGV_INTERVAL = 15
 ERROR_BACKOFF = 20
 
 
@@ -185,6 +186,7 @@ def main():
         t for t in cfg.get("targets", [])
         if not chains.is_lotte(t["site_no"])
     ]
+    priority_cgv_sites = set(str(x) for x in cfg.get("priority_cgv_sites", []))
     if not targets:
         raise RuntimeError("로컬 감시 대상이 없습니다.")
 
@@ -201,12 +203,19 @@ def main():
         notifier.send(
             "🏠 <b>로컬 빠른 감시 시작</b>\n\n"
             "CGV {}곳 · 메가박스 {}곳\n"
-            "CGV 지점별 약 {}초 / 메가박스 지점별 약 {}초\n"
+            "CGV 일반 약 {}초 / 집중감시 약 {}초 / 메가박스 약 {}초\n"
             "CGV는 새 모닝 회차가 추가될 때마다 재알림\n"
+            "집중감시 CGV: {}\n"
             "대상일 {}".format(
                 sum(not chains.is_megabox(t["site_no"]) for t in targets),
                 sum(chains.is_megabox(t["site_no"]) for t in targets),
-                CGV_INTERVAL, MEGABOX_INTERVAL, target_date,
+                CGV_INTERVAL, PRIORITY_CGV_INTERVAL, MEGABOX_INTERVAL,
+                ", ".join(
+                    t.get("site_nm", t["site_no"]) for t in targets
+                    if (not chains.is_megabox(t["site_no"])
+                        and str(t["site_no"]) in priority_cgv_sites)
+                ) or "없음",
+                target_date,
             )
         )
     except Exception as exc:
@@ -226,7 +235,12 @@ def main():
         key = target_key(t)
         site_no = t["site_no"]
         site_nm = t.get("site_nm", site_no)
-        interval = MEGABOX_INTERVAL if chains.is_megabox(site_no) else CGV_INTERVAL
+        if chains.is_megabox(site_no):
+            interval = MEGABOX_INTERVAL
+        elif str(site_no) in priority_cgv_sites:
+            interval = PRIORITY_CGV_INTERVAL
+        else:
+            interval = CGV_INTERVAL
 
         try:
             rows = fetch_rows(t, target_date)
