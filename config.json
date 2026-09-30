@@ -149,5 +149,5 @@
     "slowdown": 10
   },
   "target_date": "20261003",
-  "cgv_every_runs": 3
+  "cgv_every_runs": 10
 }
