@@ -419,21 +419,15 @@ def update_health_status_message(state):
 
     if message_id:
         state["health_status_message_id"] = int(message_id)
-        try:
-            notifier.pin_message(message_id)
-        except Exception as exc:
-            log("통합 상태 메시지 자동 고정 실패(무시): {}".format(exc))
 
 
-def cleanup_old_status_pins(state):
-    """예전에 따로 쓰던 CGV/메가박스 상태판 고정을 한 번 정리한다."""
-    for key in ("cgv_status_message_id", "megabox_status_message_id"):
-        old_id = state.pop(key, None)
-        if old_id:
-            try:
-                notifier.unpin_message(old_id)
-            except Exception as exc:
-                log("예전 상태 메시지 고정 해제 실패(무시): {}".format(exc))
+def cleanup_old_status_ids(state):
+    """예전에 따로 쓰던 상태판 ID만 state에서 정리한다.
+
+    Telegram 고정/고정해제는 사용자가 직접 관리한다.
+    """
+    state.pop("cgv_status_message_id", None)
+    state.pop("megabox_status_message_id", None)
 
 
 # ---------------------------------------------------------------- 감시
@@ -575,12 +569,29 @@ def run_once(cfg, state, dry_run=False):
             continue
 
         # 메가박스는 매 사이클 확인.
-        # CGV는 설정한 횟수마다 한 번만 확인.
+        # CGV는 run_no 나머지가 아니라 '마지막 실제 시도 시각' 기준으로
+        # 약 N분마다 확인한다. 여러 Actions 실행의 state 병합 때문에 run_no
+        # 위상이 꼬여 CGV가 계속 skip 되는 일을 막는다.
         if not chains.is_megabox(site_no) and not chains.is_lotte(site_no):
             cgv_every = max(1, int(cfg.get("cgv_every_runs", 3)))
+            cgv_interval = cgv_every * 60
+            last_attempt = state.get("cgv_last_attempt")
+            cgv_due = True
 
-            if state["run_no"] % cgv_every != 1:
-                log("  {}: CGV 감속 주기라 이번 사이클 건너뜀".format(label))
+            if last_attempt:
+                try:
+                    elapsed = (
+                        datetime.now(KST) - datetime.fromisoformat(last_attempt)
+                    ).total_seconds()
+                    cgv_due = elapsed >= cgv_interval
+                except (TypeError, ValueError):
+                    cgv_due = True
+
+            if not cgv_due:
+                remain = max(1, int(cgv_interval - elapsed))
+                log("  {}: CGV 감속 주기라 이번 사이클 건너뜀 (약 {}초 후 재시도)".format(
+                    label, remain
+                ))
                 continue
 
         # 이번에 새로 등록된 대상인가. 시스템 전체의 첫 실행과는 별개다.
@@ -886,7 +897,7 @@ def cycle(cfg, dry_run):
     # 앞으로는 통합 상태판 하나만 계속 수정한다.
     if not dry_run:
         try:
-            cleanup_old_status_pins(state)
+            cleanup_old_status_ids(state)
             update_health_status_message(state)
             log("  통합 영화관 상태판 갱신")
         except Exception as exc:
