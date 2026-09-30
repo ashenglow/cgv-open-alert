@@ -829,7 +829,6 @@ def serve_until(cfg, seconds):
 def cycle(cfg, dry_run):
     state = load_state()
     was_first = not state.get("initialized", False)
-    blocked_at = state.get("blocked_at") if state.get("blocked") else None
 
     # 텔레그램으로 들어온 설정 명령을 먼저 처리한다.
     if not dry_run:
@@ -844,11 +843,10 @@ def cycle(cfg, dry_run):
     messages, state = run_once(cfg, state, dry_run)
     sent = deliver(messages, state, dry_run)
 
-    # CGV는 감속 사이클에는 실제 요청을 하지 않는다.
-    # 실제 요청을 한 사이클에서만 상태판을 갱신한다.
+    # CGV는 실제 요청을 한 사이클에서만 최근 결과를 갱신한다.
     cgv_blocked_now = bool(state.pop("_cgv_blocked_this_cycle", False))
     cgv_attempted_now = bool(state.pop("_cgv_attempted_this_cycle", False))
-    cgv_failure_detail = state.pop("_cgv_failure_detail", None)
+    state.pop("_cgv_failure_detail", None)
 
     if cgv_attempted_now and not dry_run:
         now_iso = datetime.now(KST).isoformat(timespec="seconds")
@@ -859,19 +857,18 @@ def cycle(cfg, dry_run):
             state["blocked"] = True
             if state["cgv_fail_count"] == 1:
                 state["blocked_at"] = now_iso
-            try:
-                                log("  CGV 최근 조회 실패 상태 기록")
+            log("  CGV 최근 조회 실패 상태 기록")
         else:
             state["cgv_fail_count"] = 0
             state["cgv_last_success"] = now_iso
             state["blocked"] = False
             state.pop("blocked_at", None)
-            try:
-                                log("  CGV 최근 조회 성공 상태 기록")
+            log("  CGV 최근 조회 성공 상태 기록")
 
+    # 메가박스 역시 실제 요청을 한 사이클에서만 최근 결과를 갱신한다.
     megabox_failed_now = bool(state.pop("_megabox_failed_this_cycle", False))
     megabox_attempted_now = bool(state.pop("_megabox_attempted_this_cycle", False))
-    megabox_failure_detail = state.pop("_megabox_failure_detail", None)
+    state.pop("_megabox_failure_detail", None)
 
     if megabox_attempted_now and not dry_run:
         now_iso = datetime.now(KST).isoformat(timespec="seconds")
@@ -879,14 +876,14 @@ def cycle(cfg, dry_run):
 
         if megabox_failed_now:
             state["megabox_fail_count"] = int(state.get("megabox_fail_count", 0) or 0) + 1
-            try:
-                                log("  메가박스 최근 조회 실패 상태 기록")
+            log("  메가박스 최근 조회 실패 상태 기록")
         else:
             state["megabox_fail_count"] = 0
             state["megabox_last_success"] = now_iso
-            try:
-                                log("  메가박스 최근 조회 성공 상태 기록")
+            log("  메가박스 최근 조회 성공 상태 기록")
 
+    # 예전에 따로 만들었던 상태판 두 개는 고정만 해제하고,
+    # 앞으로는 통합 상태판 하나만 계속 수정한다.
     if not dry_run:
         try:
             cleanup_old_status_pins(state)
@@ -895,7 +892,6 @@ def cycle(cfg, dry_run):
         except Exception as exc:
             log("통합 상태판 갱신 실패(무시): {}".format(exc))
 
-    if not dry_run:
         save_state(state)
 
     if was_first and not dry_run and cfg["targets"]:
@@ -909,7 +905,6 @@ def cycle(cfg, dry_run):
         except Exception as exc:
             log("시작 알림 실패(무시): {}".format(exc))
     return sent
-
 
 def main():
     parser = argparse.ArgumentParser(description="CGV 예매 오픈 감시")
