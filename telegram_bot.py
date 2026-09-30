@@ -590,7 +590,22 @@ def _status(cfg, state, describe):
         lines.append("CGV          ✅ 최근 조회 성공")
         lines.append("             마지막 시도 {}".format(attempt_txt))
 
-    lines.append("메가박스     ✅ 감시 대상 유지")
+    mega_fail = int(state.get("megabox_fail_count", 0) or 0)
+    mega_attempt = state.get("megabox_last_attempt")
+    try:
+        from datetime import datetime
+        mega_attempt_txt = datetime.fromisoformat(mega_attempt).strftime("%H:%M:%S")
+    except Exception:
+        mega_attempt_txt = "아직 없음"
+
+    if mega_fail > 0:
+        lines.append("메가박스     ⚠️ 최근 조회 실패")
+        lines.append("             마지막 시도 {} · 연속 {}회".format(
+            mega_attempt_txt, mega_fail))
+    else:
+        lines.append("메가박스     ✅ 최근 조회 성공")
+        lines.append("             마지막 시도 {}".format(mega_attempt_txt))
+
     lines.append("롯데시네마   ✅ 감시 대상 유지")
     lines.append("")
     lines.append("마지막 점검  {}".format(state.get("last_run", "아직 없음")))
