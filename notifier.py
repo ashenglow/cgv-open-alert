@@ -126,29 +126,3 @@ def edit_message(message_id, text, chat_id=None):
         "disable_web_page_preview": True,
     })
 
-
-def pin_message(message_id, chat_id=None):
-    """가능하면 상태 메시지를 채팅방에 고정한다. 권한이 없으면 호출자가 무시하면 된다."""
-    env_token, env_chat = credentials()
-    token = env_token
-    chat_id = chat_id or env_chat
-    if not token or not chat_id:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 가 없습니다.")
-    return _call(token, "pinChatMessage", {
-        "chat_id": chat_id,
-        "message_id": int(message_id),
-        "disable_notification": True,
-    })
-
-
-def unpin_message(message_id, chat_id=None):
-    """특정 텔레그램 메시지의 고정을 해제한다."""
-    env_token, env_chat = credentials()
-    token = env_token
-    chat_id = chat_id or env_chat
-    if not token or not chat_id:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 가 없습니다.")
-    return _call(token, "unpinChatMessage", {
-        "chat_id": chat_id,
-        "message_id": int(message_id),
-    })
