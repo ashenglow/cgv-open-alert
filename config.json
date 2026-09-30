@@ -15,43 +15,22 @@
       "notify": "movie"
     },
     {
-      "site_no": "0010",
-      "site_nm": "구로",
+      "site_no": "0056",
+      "site_nm": "강남",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
     },
     {
-      "site_no": "0063",
-      "site_nm": "대학로",
+      "site_no": "0001",
+      "site_nm": "강변",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
     },
     {
-      "site_no": "0252",
-      "site_nm": "동대문",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0009",
-      "site_nm": "명동",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0300",
-      "site_nm": "성신여대입구",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0112",
-      "site_nm": "여의도",
+      "site_no": "0276",
+      "site_nm": "수유",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
@@ -59,34 +38,6 @@
     {
       "site_no": "0292",
       "site_nm": "연남",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0074",
-      "site_nm": "왕십리",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0013",
-      "site_nm": "용산아이파크몰",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0223",
-      "site_nm": "피카디리1958",
-      "screen": "ALL",
-      "movie_keyword": "치이카와",
-      "notify": "movie"
-    },
-    {
-      "site_no": "0191",
-      "site_nm": "홍대",
       "screen": "ALL",
       "movie_keyword": "치이카와",
       "notify": "movie"
@@ -101,5 +52,8 @@
   },
   "target_date": "20261003",
   "cgv_every_runs": 10,
-  "priority_cgv_sites": []
+  "priority_cgv_sites": [
+    "0056",
+    "0001"
+  ]
 }
