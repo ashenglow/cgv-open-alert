@@ -11,11 +11,11 @@
     "MB1341|ALL|치이카와|movie",
     "MB1431|ALL|치이카와|movie"
   ],
-  "blocked": true,
+  "blocked": false,
   "blocked_at": "2026-10-05T17:48:42+09:00",
-  "cgv_fail_count": 23,
-  "cgv_last_attempt": "2026-10-05T21:48:32+09:00",
-  "cgv_last_success": "2026-10-05T17:37:32+09:00",
+  "cgv_fail_count": 0,
+  "cgv_last_attempt": "2026-10-05T21:58:54+09:00",
+  "cgv_last_success": "2026-10-05T21:58:54+09:00",
   "cgv_status_message_id": 109,
   "gates": {
     "0001": {
@@ -24,13 +24,14 @@
         "20261006",
         "20261007",
         "20261008",
+        "20261009",
         "20261025",
         "20261031"
       ],
       "screens": {
         "4DX": "4",
-        "씨네앤포레": "3",
-        "아트하우스": "19"
+        "씨네앤포레": "2",
+        "아트하우스": "21"
       }
     },
     "0009": {
@@ -96,9 +97,9 @@
         "20261031"
       ],
       "screens": {
-        "4DX": "4",
-        "DOLBY ATMOS": "6",
-        "SCREENX": "2",
+        "4DX": "2",
+        "DOLBY ATMOS": "5",
+        "SCREENX": "1",
         "골드클래스": "4",
         "아이맥스": "2"
       }
@@ -291,7 +292,7 @@
         "20261031"
       ],
       "screens": {
-        "4DX": "4",
+        "4DX": "3",
         "SUITE CINEMA": "3"
       }
     },
@@ -504,12 +505,12 @@
   "health_status_message_id": 112,
   "initialized": true,
   "last_block_warn": 1790717938.8598957,
-  "last_run": "2026-10-05T21:53:42+09:00",
+  "last_run": "2026-10-05T21:58:54+09:00",
   "megabox_fail_count": 0,
-  "megabox_last_attempt": "2026-10-05T21:53:42+09:00",
-  "megabox_last_success": "2026-10-05T21:53:42+09:00",
+  "megabox_last_attempt": "2026-10-05T21:58:54+09:00",
+  "megabox_last_success": "2026-10-05T21:58:54+09:00",
   "megabox_status_message_id": 111,
-  "run_no": 40615,
+  "run_no": 40618,
   "seen": [
     "M|0001|30001367",
     "M|0013|30001367",
